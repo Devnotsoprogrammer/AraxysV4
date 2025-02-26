@@ -1,0 +1,76 @@
+const {
+  EmbedBuilder,
+  Message,
+  ButtonBuilder,
+  ActionRowBuilder,
+  ButtonStyle,
+} = require("discord.js");
+
+const master = [
+  "931512484769189898",
+  "1277996795225575515",
+  "1237649310141906965",
+];
+
+module.exports = {
+  name: "messageCreate",
+  once: false,
+  /**
+   * @param {Message} message
+   */
+
+  async execute(message, client) {
+    try {
+      // Returnif message is from a bot
+      if (message.author.bot) return;
+
+      // Check if message is from DM or guild
+      const guildname = message.guild?.name ?? "Direct Message";
+
+      // Handle bot mention
+      if (message.content.includes(`<@${client.user.id}>`)) {
+        const embed = new EmbedBuilder()
+          .setTitle(`${guildname}`)
+          .setColor(client.color)
+          .setDescription(
+            `Hello!👋 <@${message.author.id}>, I'm Araxys! How can I help you?`
+          )
+          .addFields(
+            {
+              name: "Get Started",
+              value: `Use \`${client.config.prefix}help\` to get started!`,
+            },
+            {
+              name: "Prefix",
+              value: `My prefix is \`${client.config.prefix}\``,
+            },
+            { name: "Appreciation", value: "Thank you for using me!" },
+            { name: "Developement Team", value: "Liquid Code Creations" }
+          )
+          .setThumbnail(client.user.displayAvatarURL())
+          .setFooter({
+            text: "Created by Dev Innovate",
+            iconURL: `https://cdn.discordapp.com/attachments/1316765600529256571/1325459797381877844/A_figure_sitting_and_looking_upward_to_God_with_robes_and_clothes_in_black_including_the_sword_with_the_face_hidden.png?ex=677bde21&is=677a8ca1&hm=2a63748daa20ce0d6158fc960fec68cdc5bbbd157a88733db071e47611465592&`,
+          });
+
+        const button1 = new ButtonBuilder()
+          .setLabel("Invite Me")
+          .setURL(
+            `https://discord.com/api/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`
+          )
+          .setStyle(ButtonStyle.Link);
+
+        const button2 = new ButtonBuilder()
+          .setLabel("Support Server")
+          .setURL("https://discord.gg/wwcPCQ2emf")
+          .setStyle(ButtonStyle.Link);
+
+        const row = new ActionRowBuilder().addComponents(button1, button2);
+
+        await message.reply({ embeds: [embed], components: [row] });
+      }
+    } catch (error) {
+      console.error("Error in messageCreate event:", error);
+    }
+  },
+};

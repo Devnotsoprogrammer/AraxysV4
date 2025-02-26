@@ -1,0 +1,28 @@
+{
+    "prefix": "&",
+    "CLIENT_ID": "Your_Client_ID",
+    "GUILD_ID": "1324664144686874684",
+    "ownerIds": [
+        "Your_Discord_ID",
+        ""
+    ],
+    "premiumManagers": [
+        "1203931944421949533",
+        "1052878554095955969"
+    ],
+    "botID": "",
+    "channelID": "",
+    "channelID2": "",
+    "channelID3": "",
+    "channelID4": "",
+    "webhookID": "",
+    "webhookID2": "",
+    "AdminID": "",
+    "StaffID": "",
+    "spotify": {
+        "clientId": "Your_actual_client_id",
+        "clientSecret": "Your_actual_clinet_secret"
+    },
+    "OPENAI_API_KEY": "sk-your-actual-api-key-here",
+    "GEMINI_API_KEY": "your-actual-gemini-api-key-here"
+}

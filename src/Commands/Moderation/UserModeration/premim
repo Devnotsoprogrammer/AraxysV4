@@ -1,0 +1,12 @@
+// Araxians check
+      // const isAraxian = await client.db.get(`araxian_${message.guild.id}`);
+      // if (!isAraxian) {
+      //   return message.reply({
+      //     embeds: [
+      //       new EmbedBuilder()
+      //         .setColor(client.color)
+      //         .setDescription(`${client.emotes.cross} | This server is not Araxian! Purchase premium to use this command.`)
+      //         .setFooter({ text: 'Araxys Premium' }),
+      //     ],
+      //   });
+      // }

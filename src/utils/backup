@@ -1,0 +1,255 @@
+const {
+  EmbedBuilder,
+  PermissionsBitField,
+  ButtonBuilder,
+  ActionRowBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+} = require("discord.js");
+const db = require("../../../database/warndb");
+const {
+  addWarning,
+  removeWarning,
+  clearWarnings,
+  showWarnings,
+} = require("../../../utils/warnHelper");
+
+module.exports = {
+  name: "warn",
+  description: "Warning management commands",
+  usage: "warn <add/remove/clear/show> <user> <reason>",
+  category: ["moderation"],
+  cooldown: 5000,
+  run: async (client, message, args) => {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setDescription(`${client.emotes.cross} | You do not have permission to manage warnings!`)
+            .setColor(client.color),
+        ],
+      });
+    }
+
+    if (!message.guild.members.me.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setDescription(`${client.emotes.cross} | I do not have permission to manage warnings!`)
+            .setColor(client.color),
+        ],
+      });
+    }
+
+    const subcommand = args[0];
+    const user = message.mentions.members.first() || message.guild.members.cache.get(args[1]);
+    const reason = args.slice(2).join(" ");
+
+    // Role hierarchy checks for all subcommands
+    if (user) {
+      // Self-warn check
+      if (user.id === message.author.id) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | You cannot warn yourself!`)
+              .setColor(client.color),
+          ],
+        });
+      }
+
+      // Server owner check
+      if (user.id === message.guild.ownerId) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | You cannot warn the server owner!`)
+              .setColor(client.color),
+          ],
+        });
+      }
+
+      // Bot check
+      if (user.id === client.user.id) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | You cannot warn me!`)
+              .setColor(client.color),
+          ],
+        });
+      }
+
+      // Role hierarchy check
+      if (message.member.roles.highest.position <= user.roles.highest.position) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | You cannot warn users with equal or higher roles!`)
+              .setColor(client.color),
+          ],
+        });
+      }
+
+      // Bot role hierarchy check
+      if (message.guild.members.me.roles.highest.position <= user.roles.highest.position) {
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | I cannot warn users with equal or higher roles than me!`)
+              .setColor(client.color),
+          ],
+        });
+      }
+    }
+
+    if (!subcommand) {
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setDescription(`${client.emotes.cross} | Please specify a subcommand: add, remove, clear, or show.`)
+            .setColor(client.color),
+        ],
+      });
+    }
+
+    // Add collector for button interactions
+    const filter = (i) => i.user.id === message.author.id;
+    const collector = message.channel.createMessageComponentCollector({
+      filter,
+      time: 60000, // 1 minute timeout
+    });
+
+    collector.on('collect', async (interaction) => {
+      try {
+        if (interaction.customId.startsWith('warn_remove_')) {
+          const warnId = interaction.customId.split('_')[2];
+          await db.findOneAndDelete({
+            guildId: message.guild.id,
+            userId: user.id,
+            _id: warnId
+          });
+
+          const embed = new EmbedBuilder()
+            .setDescription(`${client.emotes.tick} | Warning removed successfully!`)
+            .setColor(client.color);
+
+          await interaction.update({
+            embeds: [embed],
+            components: [] // Remove the buttons after action
+          });
+        } else if (interaction.customId === 'warn_continue') {
+          // Update the warnings list
+          const warnings = await db.find({
+            guildId: message.guild.id,
+            userId: user.id
+          }).sort({ timestamp: -1 });
+
+          if (warnings.length === 0) {
+            await interaction.update({
+              embeds: [
+                new EmbedBuilder()
+                  .setDescription(`${client.emotes.info} | No more warnings to display.`)
+                  .setColor(client.color)
+              ],
+              components: []
+            });
+            return;
+          }
+
+          // Create new embed and buttons for next page
+          const warningsEmbed = new EmbedBuilder()
+            .setTitle(`Warnings for ${user.user.tag}`)
+            .setColor(client.color);
+
+          const warningButtons = new ActionRowBuilder();
+          const displayWarnings = warnings.slice(0, 5); // Display 5 warnings per page
+
+          displayWarnings.forEach((warn, index) => {
+            warningsEmbed.addFields({
+              name: `Warning ${index + 1}`,
+              value: `Reason: ${warn.reason}\nModerator: <@${warn.moderatorId}>\nDate: <t:${Math.floor(warn.timestamp / 1000)}:R>`
+            });
+
+            warningButtons.addComponents(
+              new ButtonBuilder()
+                .setCustomId(`warn_remove_${warn._id}`)
+                .setLabel(`Remove Warning ${index + 1}`)
+                .setStyle(ButtonStyle.Danger)
+            );
+          });
+
+          if (warnings.length > 5) {
+            warningButtons.addComponents(
+              new ButtonBuilder()
+                .setCustomId('warn_continue')
+                .setLabel('Show More')
+                .setStyle(ButtonStyle.Primary)
+            );
+          }
+
+          await interaction.update({
+            embeds: [warningsEmbed],
+            components: [warningButtons]
+          });
+        }
+      } catch (error) {
+        console.error('Error handling button interaction:', error);
+        await interaction.reply({
+          content: 'An error occurred while processing the button interaction.',
+          ephemeral: true
+        }).catch(() => {
+          message.channel.send('An error occurred while processing the button interaction.');
+        });
+      }
+    });
+
+    collector.on('end', (collected, reason) => {
+      if (reason === 'time') {
+        message.channel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.info} | Warning management session timed out.`)
+              .setColor(client.color)
+          ]
+        }).catch(() => {});
+      }
+    });
+
+    switch (subcommand.toLowerCase()) {
+      case "add":
+        if (!reason) {
+          return message.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setDescription(`${client.emotes.cross} | Please provide a reason for the warning.`)
+                .setColor(client.color),
+            ],
+          });
+        }
+        await addWarning(client, message, user, reason);
+        break;
+
+      case "remove":
+        await removeWarning(client, message, user);
+        break;
+
+      case "clear":
+        await clearWarnings(client, message, user);
+        break;
+
+      case "show":
+        await showWarnings(client, message, user);
+        break;
+
+      default:
+        return message.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`${client.emotes.cross} | Invalid subcommand. Use add, remove, clear, or show.`)
+              .setColor(client.color),
+          ],
+        });
+    }
+  },
+};
